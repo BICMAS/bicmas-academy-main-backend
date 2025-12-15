@@ -5,25 +5,32 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
+  //output   = "../src/prisma/generated/client"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id           String       @id @default(cuid()) @db.Uuid
-  username     String       @unique
-  email        String       @unique
-  fullName     String
-  timezone     String       @default("UTC")
-  status       UserStatus   @default(ACTIVE)
-  authProvider AuthProvider @default(LOCAL)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+enum UserRole {
+  SUPER_ADMIN
+  HR_MANAGER
+  LEARNER
+}
 
+model User {
+  id                  String         @id @unique @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
+  username            String         @unique
+  email               String         @unique
+  fullName            String
+  password            String         @db.VarChar(255)
+  timezone            String         @default("UTC")
+  status              UserStatus     @default(ACTIVE)
+  authProvider        AuthProvider   @default(LOCAL)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  userRole            UserRole       @default(LEARNER)
   devices             Device[]
   groupMembers        GroupMember[]
   coursesCreated      Course[]       @relation("CreatedBy")
@@ -49,7 +56,7 @@ enum AuthProvider {
 }
 
 model Device {
-  id           String     @id @default(cuid()) @db.Uuid
+  id           String     @id @unique @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
   userId       String     @db.Uuid
   deviceType   DeviceType
   deviceToken  String
@@ -69,7 +76,7 @@ enum DeviceType {
 }
 
 model Group {
-  id       String  @id @default(cuid()) @db.Uuid
+  id       String  @id @unique @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
   orgId    String? @db.Uuid
   name     String
   metadata Json?
@@ -81,7 +88,7 @@ model Group {
 }
 
 model GroupMember {
-  id      String    @id @default(cuid()) @db.Uuid
+  id      String    @id @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
   groupId String    @db.Uuid
   userId  String    @db.Uuid
   role    GroupRole @default(MEMBER)
@@ -100,7 +107,7 @@ enum GroupRole {
 
 // Courses: Main learning content
 model Course {
-  id               String     @id @default(cuid()) @db.Uuid
+  id               String     @id @unique @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
   title            String
   description      String?
   scormPackageId   String?    @db.Uuid
@@ -128,7 +135,7 @@ enum Visibility {
 
 // ScormPackages: SCORM content storage
 model ScormPackage {
-  id           String       @id @default(cuid()) @db.Uuid
+  id           String       @id @unique @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
   filename     String
   storagePath  String // S3 key
   manifestJson Json // Extracted for queries
@@ -153,7 +160,7 @@ enum ScormVersion {
 
 // Assignments: Task assignments to users/groups
 model Assignment {
-  id              String    @id @default(cuid()) @db.Uuid
+  id              String    @id @unique @default(uuid()) @db.Uuid // ← ADDED @db.Uuid
   courseId        String    @db.Uuid
   assignerId      String    @db.Uuid
   assigneeUserId  String?   @db.Uuid
@@ -173,7 +180,7 @@ model Assignment {
 
 // Attempts: User progress on courses/SCORM
 model Attempt {
-  id             String        @id @default(cuid()) @db.Uuid
+  id             String        @id @unique @default(uuid()) @db.Uuid
   userId         String        @db.Uuid
   courseId       String        @db.Uuid
   scormPackageId String?       @db.Uuid
@@ -204,7 +211,7 @@ enum AttemptStatus {
 
 // Interactions: SCORM interactions (consider separate table per type if volume high; here as flat for simplicity)
 model Interaction {
-  id               String   @id @default(cuid()) @db.Uuid
+  id               String   @id @unique @default(uuid()) @db.Uuid
   attemptId        String   @db.Uuid
   interactionIndex Int
   interactionType  String // e.g., 'choice', 'true-false'
@@ -220,7 +227,7 @@ model Interaction {
 
 // SuspendData: SCORM suspend data (1:1 per attempt; Json for blob)
 model SuspendDatum {
-  id          String @id @default(cuid()) @db.Uuid
+  id          String @id @unique @default(uuid()) @db.Uuid
   attemptId   String @unique @db.Uuid
   suspendBlob Json // Compressed/serialized state
 
@@ -231,7 +238,7 @@ model SuspendDatum {
 
 // Certificates: Issued certs
 model Certificate {
-  id               String   @id @default(cuid()) @db.Uuid
+  id               String   @id @unique @default(uuid()) @db.Uuid
   userId           String   @db.Uuid
   courseId         String   @db.Uuid
   templateId       String? // FK to templates if separate
@@ -248,7 +255,7 @@ model Certificate {
 
 // AuditLogs: Event logging
 model AuditLog {
-  id         String   @id @default(cuid()) @db.Uuid
+  id         String   @id @unique @default(uuid()) @db.Uuid
   eventType  String
   actorId    String   @db.Uuid
   targetType String
