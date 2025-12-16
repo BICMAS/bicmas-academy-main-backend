@@ -5,6 +5,7 @@ import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import router from './routes/index.js';
+import cors from 'cors';
 
 dotenv.config();  // Load env early
 
@@ -21,6 +22,7 @@ const prisma = new PrismaClient({ adapter });
 // redis.connect().catch(console.error);
 
 app.use(express.json());
+app.use(cors());
 
 // Health route
 app.get('/', (req, res) => {
