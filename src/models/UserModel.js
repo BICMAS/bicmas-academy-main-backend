@@ -13,6 +13,10 @@ export class UserModel {
         return prisma.user.update({ where: { id }, data: updates });
     }
 
+    static async findByPhone(phoneNumber) {
+        return prisma.user.findUnique({ where: { phoneNumber } });
+    }
+
     static async findMany() {
         return prisma.user.findMany({ select: { id: true, username: true, email: true, fullName: true, userRole: true, status: true } });
     }
@@ -21,7 +25,19 @@ export class UserModel {
         return prisma.user.create({ data });
     }
 
+    static async findMany(requesterRole, requesterOrgId = null) {
+        const where = requesterRole === 'SUPER_ADMIN'
+            ? {}
+            : { orgId: requesterOrgId };
+        return prisma.user.findMany({
+            where,
+            select: { id: true, username: true, email: true, fullName: true, userRole: true, status: true, orgId: true }
+        });
+    }
 
+    static async findByOrgId(orgId) {
+        return prisma.user.findMany({ where: { orgId } });
+    }
 
     static async bulkCreate(csvData) {
         return prisma.user.createMany({ data: csvData, skipDuplicates: true });

@@ -1,10 +1,27 @@
-import { UserService } from '../services/UserService.js';
+import { UserService } from '../service/UserService.js'
 import multer from 'multer';
 import csv from 'csv-parser';
 import fs from 'fs';
 
 const upload = multer({ dest: 'uploads/' });
 
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await UserService.getAllUsers(req.user);
+        res.json(users);
+    } catch (error) {
+        res.status(403).json({ error: error.message });
+    }
+};
+
+export const getCurrentOrgUsers = async (req, res) => {
+    try {
+        const users = await UserService.getCurrentOrgUsers(req.user);
+        res.json(users);
+    } catch (error) {
+        res.status(403).json({ error: error.message });
+    }
+};
 export const getUser = async (req, res) => {
     try {
         const { id } = req.params;
@@ -16,10 +33,20 @@ export const getUser = async (req, res) => {
 };
 
 export const createUser = async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[USER CTRL START] ${timestamp} - Body keys: ${Object.keys(req.body).join(', ')}, req.user: ${req.user ? req.user.userRole : 'UNDEFINED'}`);
+
     try {
-        const result = await UserService.createUser(req.body);
+        if (!req.user) {
+            console.log(`[USER CTRL FAIL] ${timestamp} - No req.user, 401`);
+            return res.status(401).json({ error: 'Unauthorized - no user context' });
+        }
+
+        const result = await UserService.createUser(req.body, req.user);
+        console.log(`[USER CTRL SUCCESS] ${timestamp} - Created user ID: ${result.id}`);
         res.status(201).json(result);
     } catch (error) {
+        console.error(`[USER CTRL ERROR] ${timestamp} - ${error.message}`);
         res.status(400).json({ error: error.message });
     }
 };

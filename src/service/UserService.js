@@ -1,0 +1,79 @@
+import { UserModel } from '../models/UserModel.js';
+import { OrganizationModel } from '../models/OrganizationModel.js';
+import bcrypt from 'bcryptjs';
+
+export class UserService {
+
+    static async getAllUsers(requester) {
+        if (requester.userRole === 'SUPER_ADMIN') {
+            return await UserModel.findMany();
+        } else if (requester.userRole === 'HR_MANAGER') {
+            if (!requester.orgId) throw new Error('HR must be in an organization');
+            return await UserModel.findByOrgId(requester.orgId);
+        } else {
+            throw new Error('Insufficient role to view users');
+        }
+    }
+
+    static async getCurrentOrgUsers(requester) {  // FIXED: Renamed, uses token orgId
+        if (requester.userRole !== 'HR_MANAGER' && requester.userRole !== 'SUPER_ADMIN') {
+            throw new Error('Access denied—only HR and super admin can view org users');
+        }
+        if (!requester.orgId) throw new Error('No organization found for user');
+        return await UserModel.findByOrgId(requester.orgId);
+    }
+
+    static async getUser(id) {
+        const user = await UserModel.findById(id);
+        if (!user) throw new Error('User not found');
+        return { ...user, password: undefined };  // Strip sensitive
+    }
+
+    static async createUser(data, creator) {
+        const { fullName, email, phoneNumber, department, userRole, groupId, password, username } = data;  // Include username in destructuring
+        if (!fullName || !email || !userRole || !department || !password) {
+            throw new Error('Required fields: fullName, email, userRole, department, password');
+        }
+
+        let orgId = null;
+        if (creator.userRole === 'SUPER_ADMIN') {
+            if (userRole === 'HR_MANAGER') {
+                const org = await OrganizationModel.create({
+                    name: `Org for ${fullName}`,
+                    createdBy: creator.id
+                });
+                orgId = org.id;
+            }
+        } else if (creator.userRole === 'HR_MANAGER') {
+            if (!creator.orgId) throw new Error('HR must be in an organization');
+            orgId = creator.orgId;
+            if (userRole !== 'LEARNER') throw new Error('HR can only create learners');
+        } else {
+            throw new Error('Insufficient role to create users');
+        }
+
+        // FIXED: Check email only for duplicates (DB handles username unique)
+        const existing = await UserModel.findByEmail(email);
+        if (existing) throw new Error('Email already exists');
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const user = await UserModel.create({
+            fullName,
+            email,
+            username,  // Include if provided (DB enforces unique)
+            phoneNumber: phoneNumber || null,
+            department,
+            userRole,
+            password: hashedPassword,
+            orgId,
+            status: 'ACTIVE',
+            authProvider: 'LOCAL'
+        });
+
+        if (groupId) {
+            // await GroupMemberModel.create({ groupId, userId: user.id, role: 'MEMBER' });
+        }
+
+        return { ...user, password: undefined };
+    }
+}

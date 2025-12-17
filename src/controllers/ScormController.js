@@ -1,4 +1,4 @@
-import { ScormService } from '../services/ScormService.js';
+import { ScormService } from '../service/ScormService.js';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
 
 export const uploadPackage = (req, res) => {

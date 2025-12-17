@@ -1,4 +1,4 @@
-import { AuthService } from '../services/AuthService.js';
+import { AuthService } from '../service/AuthService.js';
 
 export const login = async (req, res) => {
     try {
@@ -17,6 +17,16 @@ export const ssoCallback = async (req, res) => {
         res.json(result);
     } catch (error) {
         res.status(400).json({ error: error.message });
+    }
+};
+
+export const phoneLogin = async (req, res) => {
+    try {
+        const { phoneNumber, password } = req.body;
+        const result = await AuthService.phoneLogin({ phoneNumber, password });
+        res.json(result);
+    } catch (error) {
+        res.status(401).json({ error: error.message });
     }
 };
 

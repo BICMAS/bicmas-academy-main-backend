@@ -18,6 +18,26 @@ export class AuthService {
         return { accessToken, refreshToken, user: { id: user.id, email: user.email, userRole: user.userRole } };
     }
 
+    static async phoneLogin(credentials) {
+        const { phoneNumber, password } = credentials;
+        if (!phoneNumber || !password) throw new Error('Phone number and password required');
+
+        const user = await UserModel.findByPhone(phoneNumber);
+        if (!user || user.authProvider !== 'LOCAL' || user.status !== 'ACTIVE') {
+            throw new Error('Invalid credentials');
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        if (!passwordMatch) throw new Error('Invalid credentials');
+
+        const { accessToken, refreshToken } = generateTokens(user.id, user.userRole);
+        return {
+            accessToken,
+            refreshToken,
+            user: { id: user.id, email: user.email, phoneNumber: user.phoneNumber, userRole: user.userRole, orgId: user.orgId }
+        };
+    }
+
     static async refresh(refreshToken) {
         if (!refreshToken) throw new Error('Refresh token required');
 

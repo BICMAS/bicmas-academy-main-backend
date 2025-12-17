@@ -1,6 +1,6 @@
 import multer from 'multer';
-import { CourseService } from '../services/CourseService.js';
-import { ScormService } from '../services/ScormService.js';
+import { CourseService } from '../service/CourseService.js';
+import { ScormService } from '../service/ScormService.js';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
 
 const upload = multer({ dest: 'uploads/' });

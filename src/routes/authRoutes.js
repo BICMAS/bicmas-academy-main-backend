@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
-import { login, ssoCallback, refresh, logout, registerDevice, verifyMFA } from '../controllers/AuthControllers.js';
+import { login, ssoCallback, refresh, logout, registerDevice, verifyMFA, phoneLogin } from '../controllers/AuthControllers.js';
 
 const authRouter = Router();
 
 // Public
 authRouter.post('/login', login);
+authRouter.post('/phone-login', phoneLogin);
 authRouter.post('/sso/callback', ssoCallback);
 authRouter.post('/refresh', refresh);
 
