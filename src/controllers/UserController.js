@@ -15,11 +15,16 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const getCurrentOrgUsers = async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[ORG CTRL START] ${timestamp} - User role: ${req.user.userRole}, orgId: ${req.user.orgId}`);
+
     try {
         const users = await UserService.getCurrentOrgUsers(req.user);
-        res.json(users);
+        console.log(`[ORG CTRL END] ${timestamp} - Returned ${users.length} users`);
+        res.json(users || []);  // FIXED: Always return array (empty OK)
     } catch (error) {
-        res.status(403).json({ error: error.message });
+        console.error(`[ORG CTRL ERROR] ${timestamp} - ${error.message}`);
+        res.status(500).json({ error: error.message });  // FIXED: 500 for service errors (not 403)
     }
 };
 export const getUser = async (req, res) => {

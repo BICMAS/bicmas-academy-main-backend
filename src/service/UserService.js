@@ -15,12 +15,26 @@ export class UserService {
         }
     }
 
-    static async getCurrentOrgUsers(requester) {  // FIXED: Renamed, uses token orgId
+    static async getCurrentOrgUsers(requester) {
+        const timestamp = new Date().toISOString();
+        console.log(`[ORG SVC START] ${timestamp} - Role: ${requester.userRole}, orgId: ${requester.orgId}`);
+
         if (requester.userRole !== 'HR_MANAGER' && requester.userRole !== 'SUPER_ADMIN') {
+            console.log(`[ORG SVC FAIL] ${timestamp} - Insufficient role`);
             throw new Error('Access denied—only HR and super admin can view org users');
         }
-        if (!requester.orgId) throw new Error('No organization found for user');
-        return await UserModel.findByOrgId(requester.orgId);
+
+        if (!requester.orgId) {
+            console.log(`[ORG SVC FAIL] ${timestamp} - No orgId`);
+            throw new Error('No organization found for user');
+        }
+
+        const users = await UserModel.findByOrgId(requester.orgId);
+        console.log(`[ORG SVC END] ${timestamp} - Found ${users.length} users for org ${requester.orgId}`);
+        if (users.length === 0) {
+            console.log(`[ORG SVC NOTE] ${timestamp} - Empty org, returning []`);
+        }
+        return users;  // FIXED: Return empty [] if no users (no throw)
     }
 
     static async getUser(id) {

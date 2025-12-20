@@ -11,5 +11,5 @@ router.use('/auth', authRouter);
 router.use('/users', userRouter);
 router.use('/groups', groupRouter);
 router.use('/courses', courseRouter);
-router.use('/scorm', scormRouter);
+router.use('/scorm-packages', scormRouter)
 export default router;

@@ -12,16 +12,21 @@ dotenv.config();  // Load env early
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Prisma client with adapter (Rust-free mode for Prisma 7 compatibility)
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// Redis client (connect for caching)
-// const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
-// redis.connect().catch(console.error);
 
 app.use(express.json());
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
+
+
+app.use((req, res, next) => {
+    req.setTimeout(300000);  // 5min per request
+    res.setTimeout(300000);
+    next();
+});
 app.use(cors());
 
 // Health route
@@ -53,6 +58,16 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
-app.listen(port, () => {
+app.use((err, req, res, next) => {
+    console.error('[GLOBAL ERROR HANDLER]', err);
+    if (res.headersSent) {
+        return next(err);
+    }
+    res.status(500).json({ error: 'Internal server error' });
+});
+
+const server = app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
 });
+server.keepAliveTimeout = 65000;  // FIXED: Keep-alive for long uploads
+server.timeout = 300000;

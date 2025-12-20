@@ -1,9 +1,5 @@
-import multer from 'multer';
 import { CourseService } from '../service/CourseService.js';
-import { ScormService } from '../service/ScormService.js';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
-
-const upload = multer({ dest: 'uploads/' });
 
 export const getCourses = async (req, res) => {
     try {
@@ -14,21 +10,42 @@ export const getCourses = async (req, res) => {
     }
 };
 
-export const createCourse = async (req, res) => {
+export const getCourseById = async (req, res) => {
     try {
-        const result = await CourseService.createCourse(req.body);
+        const { id } = req.params;
+        const course = await CourseService.getCourseById(id);
+        res.json(course);
+    } catch (error) {
+        res.status(404).json({ error: error.message });
+    }
+};
+
+export const createDraft = async (req, res) => {
+    try {
+        const result = await CourseService.createDraft(req.body, req.user.id);
         res.status(201).json(result);
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 };
 
-export const createAssignment = async (req, res) => {
+export const updateCourse = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await CourseService.createAssignment(id, req.body);
-        res.status(201).json(result);
+        const result = await CourseService.updateCourse(id, req.body);
+        res.json(result);
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 };
+
+export const publishCourse = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await CourseService.publishCourse(id, req.body);
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+

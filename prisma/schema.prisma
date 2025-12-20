@@ -82,7 +82,7 @@ model User {
   authProvider AuthProvider   @default(LOCAL)
   userRole     UserRole       @default(LEARNER)
   department   Department?
-  phoneNumber  String?
+  phoneNumber  String?        @unique
   metadata     Json?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
@@ -162,19 +162,26 @@ model GroupMember {
 }
 
 // Courses: Main learning content
-model Course {
-  id               String     @id @default(cuid()) @db.VarChar(25)
-  title            String
-  description      String?
-  scormPackageId   String?    @db.VarChar(25)
-  visibility       Visibility @default(INTERNAL)
-  version          String     @default("1.0")
-  durationEstimate Int? // In minutes
-  createdBy        String     @db.VarChar(25)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+}
 
-  // Relations
+model Course {
+  id               String       @id @default(cuid()) @db.VarChar(25)
+  title            String // Required
+  description      String? // Optional
+  tags             Json? // Optional array, e.g., ["beginner"]
+  visibility       Visibility? // Optional (null = Internal)
+  version          String? // Optional (null = "1.0")
+  status           CourseStatus @default(DRAFT)
+  durationEstimate Int?
+  scormPackageId   String?      @db.VarChar(25)
+  createdBy        String       @db.VarChar(25)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  modules      Module[]      @relation("CourseModules") // Named for nested
   scormPackage ScormPackage? @relation(fields: [scormPackageId], references: [id])
   creator      User          @relation("CreatedBy", fields: [createdBy], references: [id])
   assignments  Assignment[]
@@ -184,23 +191,52 @@ model Course {
   @@map("courses")
 }
 
-// ScormPackages: SCORM content storage
+model Module {
+  id        String   @id @default(cuid()) @db.VarChar(25)
+  name      String // Required
+  courseId  String   @db.VarChar(25)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation("CourseModules", fields: [courseId], references: [id], onDelete: Cascade) // FIXED: Matching name
+  lessons Lesson[] @relation("ModuleLessons") // Named for nested lessons
+
+  @@index([courseId]) // Perf
+  @@map("modules")
+}
+
+model Lesson {
+  id             String   @id @default(cuid()) @db.VarChar(25)
+  title          String // Required
+  description    String? // Optional
+  scormPackageId String?  @db.VarChar(25) // Optional SCORM
+  moduleId       String   @db.VarChar(25)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  module       Module        @relation("ModuleLessons", fields: [moduleId], references: [id], onDelete: Cascade) // FIXED: Matching name
+  scormPackage ScormPackage? @relation(fields: [scormPackageId], references: [id])
+
+  @@index([moduleId]) // Perf
+  @@map("lessons")
+}
+
 model ScormPackage {
   id           String       @id @default(cuid()) @db.VarChar(25)
   filename     String
-  storagePath  String // S3 key
-  manifestJson Json // Extracted for queries
+  storagePath  String
+  manifestJson Json
   scormVersion ScormVersion
   encrypted    Boolean      @default(false)
-  checksum     String // For integrity
+  checksum     String       @unique
   uploadedBy   String       @db.VarChar(25)
   uploadedAt   DateTime     @default(now())
 
   courses  Course[]
+  lessons  Lesson[]
   attempts Attempt[]
-  uploader User?     @relation(fields: [uploadedBy], references: [id]) // Optional if anon upload
+  uploader User?     @relation(fields: [uploadedBy], references: [id])
 
-  @@unique([checksum]) // Prevent dupes
   @@map("scorm_packages")
 }
 

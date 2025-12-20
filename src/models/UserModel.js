@@ -36,6 +36,7 @@ export class UserModel {
     }
 
     static async findByOrgId(orgId) {
+        console.log(`[MODEL] Finding users by orgId: ${orgId}`);
         return prisma.user.findMany({ where: { orgId } });
     }
 
