@@ -5,11 +5,16 @@ import bcrypt from 'bcryptjs';
 export class UserService {
 
     static async getAllUsers(requester) {
+        console.log('[SERVICE GET USERS] Role:', requester.userRole, 'OrgId:', requester.orgId);
         if (requester.userRole === 'SUPER_ADMIN') {
-            return await UserModel.findMany();
+            const users = await UserModel.findAll(requester.userRole, requester.orgId);
+            console.log('[SERVICE SUPER ADMIN] Returned', users.length, 'users');
+            return users;
         } else if (requester.userRole === 'HR_MANAGER') {
             if (!requester.orgId) throw new Error('HR must be in an organization');
-            return await UserModel.findByOrgId(requester.orgId);
+            const users = await UserModel.findByOrgId(requester.orgId);
+            console.log('[SERVICE HR] Returned', users.length, 'org users');
+            return users;
         } else {
             throw new Error('Insufficient role to view users');
         }

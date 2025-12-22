@@ -17,15 +17,7 @@ export class UserModel {
         return prisma.user.findUnique({ where: { phoneNumber } });
     }
 
-    static async findMany() {
-        return prisma.user.findMany({ select: { id: true, username: true, email: true, fullName: true, userRole: true, status: true } });
-    }
-
-    static async create(data) {
-        return prisma.user.create({ data });
-    }
-
-    static async findMany(requesterRole, requesterOrgId = null) {
+    static async findAll(requesterRole, requesterOrgId = null) {
         const where = requesterRole === 'SUPER_ADMIN'
             ? {}
             : { orgId: requesterOrgId };
@@ -34,6 +26,16 @@ export class UserModel {
             select: { id: true, username: true, email: true, fullName: true, userRole: true, status: true, orgId: true }
         });
     }
+
+    static async findMany() {
+        return prisma.user.findMany({ select: { id: true, username: true, email: true, fullName: true, userRole: true, status: true } });
+    }
+
+    static async create(data) {
+        return prisma.user.create({ data });
+    }
+
+
 
     static async findByOrgId(orgId) {
         console.log(`[MODEL] Finding users by orgId: ${orgId}`);

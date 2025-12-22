@@ -24,13 +24,13 @@ async function seed() {
                 userRole: 'SUPER_ADMIN',
                 status: 'ACTIVE',
                 authProvider: 'LOCAL',
-                password: hashedPassword  // NEW: Update with hash if user exists
+                password: hashedPassword
             },
             create: {
                 username: 'fola',
                 email: 'folaremidixon@gmail.com',
                 fullName: 'Folaremi Dixon',
-                password: hashedPassword,  // NEW: Create with hash
+                password: hashedPassword,
                 userRole: 'SUPER_ADMIN',
                 status: 'ACTIVE',
                 authProvider: 'LOCAL',
