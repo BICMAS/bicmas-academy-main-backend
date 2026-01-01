@@ -130,4 +130,109 @@ export class DashboardModel {
             return { completed: 0, inProgress: 0, notStarted: 0, overdue: 0 };
         }
     }
+
+    static async getActiveLearners() {
+        return prisma.user.count({
+            where: { userRole: 'LEARNER', status: 'ACTIVE' }
+        });
+    }
+
+    static async getCompletionRate() {
+        const avgResult = await prisma.attempt.aggregate({
+            where: { status: 'COMPLETED' },
+            _avg: { completionPercentage: true }
+        });
+        return avgResult._avg.completionPercentage || 0;
+    }
+
+    // static async getAverageSession() {
+    //     const avgResult = await prisma.attempt.aggregate({
+    //         _avg: { sessionDuration: true }  // Assume Attempt has sessionDuration in minutes
+    //     });
+    //     return Math.round(avgResult._avg.sessionDuration || 0);
+    // }
+
+    static async getSystemLoad() {
+        return prisma.attempt.count({
+            where: { status: 'IN_PROGRESS' }
+        });
+    }
+
+    static async getRecentActivities(limit = 10) {
+        console.log('[DASHBOARD MODEL] getRecentActivities');
+        return prisma.auditLog.findMany({
+            where: { eventType: { in: ['LOGIN', 'COURSE_START', 'COURSE_COMPLETE'] } },  // FIXED: Use eventType instead of actionType
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            include: { actor: { select: { id: true, fullName: true } } }
+        });
+    }
+
+    static async getLearningActivityGraph(days = 30) {
+        console.log('[DASHBOARD MODEL] getLearningActivityGraph');
+        try {
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - days);
+            const dailyData = await prisma.$queryRaw`
+        SELECT DATE("createdAt") as date, COUNT(*) as newAttempts, SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completions
+        FROM "attempts"
+        WHERE "createdAt" >= ${startDate.toISOString()}
+        GROUP BY DATE("createdAt")
+        ORDER BY date
+      `;
+            return dailyData.map(row => ({
+                date: row.date,
+                newAttempts: Number(row.newattempts || 0),
+                completions: Number(row.completions || 0)
+            }));
+        } catch (error) {
+            console.error('[DASHBOARD MODEL ERROR getLearningActivityGraph]', error.message);
+            return [];  // Fallback empty array
+        }
+    }
+
+    static async getRecentActivity(limit = 5) {
+        console.log('[DASHBOARD MODEL] getRecentActivity');
+        return prisma.auditLog.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            include: { actor: { select: { fullName: true } } }  // FIXED: Remove target: true
+        });
+    }
+
+    // static async getCriticalAlerts(threshold = 50) {  // Courses with <50% completion
+    //     console.log('[DASHBOARD MODEL] getCriticalAlerts');
+    //     const courses = await prisma.course.findMany({
+    //         where: {
+    //             assignments: {
+    //                 some: {
+    //                     attempts: {
+    //                         none: { status: 'COMPLETED' }  // FIXED: Assignments with incomplete attempts
+    //                     }
+    //                 }
+    //             }
+    //         },
+    //         include: {
+    //             assignments: {
+    //                 include: {
+    //                     attempts: {
+    //                         select: { completionPercentage: true, status: true }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     });
+    //     const alerts = courses.map(c => {
+    //         const allAttempts = c.assignments.flatMap(a => a.attempts);
+    //         const completedAttempts = allAttempts.filter(a => a.status === 'COMPLETED');
+    //         const avgCompletion = completedAttempts.length > 0 ? completedAttempts.reduce((sum, a) => sum + (a.completionPercentage || 0), 0) / completedAttempts.length : 0;
+    //         const failureRate = 100 - (avgCompletion * 100);
+    //         return {
+    //             id: c.id,
+    //             title: c.title,
+    //             failureRate: Math.round(failureRate * 100) / 100
+    //         };
+    //     }).filter(c => c.failureRate > threshold);
+    //     return alerts.sort((a, b) => b.failureRate - a.failureRate);
+    // }
 }

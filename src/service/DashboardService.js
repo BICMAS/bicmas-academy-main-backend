@@ -24,4 +24,29 @@ export class DashboardService {
             courseStatus
         };
     }
+
+    static async getSuperAdminDashboard() {
+        console.log('[DASHBOARD SERVICE SUPER] Fetching global dashboard');
+        const [activeLearners, completionRate, averageSession, systemLoad, recentActivities, learningActivityGraph, recentActivity, criticalAlerts] = await Promise.all([
+            DashboardModel.getActiveLearners(),
+            DashboardModel.getCompletionRate(),
+            //DashboardModel.getAverageSession(),
+            DashboardModel.getSystemLoad(),
+            DashboardModel.getRecentActivities(),
+            DashboardModel.getLearningActivityGraph(),
+            DashboardModel.getRecentActivity(),
+            // DashboardModel.getCriticalAlerts()
+        ]);
+
+        return {
+            activeLearners,
+            completionRate: Math.round(completionRate * 100) / 100,
+            averageSession,
+            systemLoad,
+            recentActivities,
+            learningActivityGraph,  // For frontend line chart
+            recentActivity,
+            //criticalAlerts
+        };
+    }
 }

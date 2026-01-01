@@ -11,3 +11,15 @@ export const getHRDashboard = async (req, res) => {
         res.status(403).json({ error: error.message });
     }
 };
+
+export const getSuperAdminDashboard = async (req, res) => {
+    try {
+        console.log('[DASHBOARD CTRL SUPER] User:', req.user.userRole);
+        const dashboard = await DashboardService.getSuperAdminDashboard();
+        console.log('[DASHBOARD CTRL SUPER] Data keys:', Object.keys(dashboard));
+        res.json(dashboard);
+    } catch (error) {
+        console.error('[DASHBOARD CTRL SUPER ERROR]', error.message);
+        res.status(403).json({ error: error.message });
+    }
+};
