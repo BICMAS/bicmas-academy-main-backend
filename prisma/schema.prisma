@@ -69,6 +69,8 @@ enum AttemptStatus {
   COMPLETED
   PASSED
   FAILED
+  NOT_STARTED
+  IN_PROGRESS
 }
 
 model User {
@@ -95,11 +97,11 @@ model User {
   groupMembers        GroupMember[]
   coursesCreated      Course[]       @relation("CreatedBy")
   assignmentsAssigner Assignment[]   @relation("Assigner")
-  attempts            Attempt[]
+  assignmentsLearner  Assignment[]   @relation("LearnerAssignments") // FIXED: Matching name
+  userAttempts        Attempt[]      @relation("UserAttempts") // FIXED: Matching name
   certificates        Certificate[]
   auditLogsActor      AuditLog[]     @relation("Actor")
   scormPackages       ScormPackage[]
-  assignments         Assignment[]
 
   @@map("users")
 }
@@ -184,7 +186,7 @@ model Course {
   modules      Module[]      @relation("CourseModules") // Named for nested
   scormPackage ScormPackage? @relation(fields: [scormPackageId], references: [id])
   creator      User          @relation("CreatedBy", fields: [createdBy], references: [id])
-  assignments  Assignment[]
+  assignments  Assignment[]  @relation("CourseAssignments") // FIXED: Named for matching
   attempts     Attempt[]
   certificates Certificate[]
 
@@ -248,39 +250,42 @@ model Assignment {
   assigneeUserId  String?   @db.VarChar(25)
   assigneeGroupId String?   @db.VarChar(25)
   dueDate         DateTime?
-  recurrenceRule  String? // RRULE string (e.g., iCalendar format)
+  recurrenceRule  String?
   createdAt       DateTime  @default(now())
 
-  course        Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  assigner      User   @relation("Assigner", fields: [assignerId], references: [id])
-  assigneeUser  User?  @relation(fields: [assigneeUserId], references: [id])
-  assigneeGroup Group? @relation(fields: [assigneeGroupId], references: [id])
+  course       Course  @relation("CourseAssignments", fields: [courseId], references: [id], onDelete: Cascade)
+  assigner     User    @relation("Assigner", fields: [assignerId], references: [id])
+  assigneeUser User?   @relation("LearnerAssignments", fields: [assigneeUserId], references: [id])
+  group        Group?  @relation(fields: [groupId], references: [id])
+  groupId      String? @db.VarChar(25)
 
-  @@unique([courseId, assigneeUserId]) // Or adjust for groups/recurrence
+  @@unique([courseId, assigneeUserId])
+  @@unique([courseId, assigneeGroupId]) // FIXED: Unique for groups too
+  @@index([courseId]) // FIXED: Perf
+  @@index([assignerId])
   @@map("assignments")
 }
 
-// Attempts: User progress on courses/SCORM
 model Attempt {
-  id             String        @id @default(cuid()) @db.VarChar(25)
-  userId         String        @db.VarChar(25)
-  courseId       String        @db.VarChar(25)
+  id                   String        @id @default(cuid()) @db.VarChar(25)
+  userId               String        @db.VarChar(25)
+  courseId             String        @db.VarChar(25)
+  status               AttemptStatus @default(NOT_STARTED)
+  completionPercentage Float?        @default(0)
+  dueDate              DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  user   User   @relation("UserAttempts", fields: [userId], references: [id], onDelete: Cascade) // FIXED: Matching name
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  scormPackage   ScormPackage? @relation(fields: [scormPackageId], references: [id])
   scormPackageId String?       @db.VarChar(25)
-  attemptNumber  Int           @default(1)
-  status         AttemptStatus @default(INCOMPLETE)
-  scoreRaw       Float? // 0-100
-  startedAt      DateTime?
-  completedAt    DateTime?
-  lastSyncedAt   DateTime?
+  interactions   Interaction[]
+  suspendDatum   SuspendDatum?
 
-  // Relations
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  scormPackage ScormPackage? @relation(fields: [scormPackageId], references: [id])
-  interactions Interaction[]
-  suspendData  SuspendDatum? // 1:1 for blob
-
-  @@unique([userId, courseId, attemptNumber])
+  @@index([userId])
+  @@index([courseId])
   @@map("attempts")
 }
 

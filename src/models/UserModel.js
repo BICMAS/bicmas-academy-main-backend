@@ -35,7 +35,13 @@ export class UserModel {
         return prisma.user.create({ data });
     }
 
-
+    static async findManyByIds(ids) {
+        if (!Array.isArray(ids) || ids.length === 0) return [];
+        return prisma.user.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, fullName: true, email: true, userRole: true, orgId: true, status: true }
+        });
+    }
 
     static async findByOrgId(orgId) {
         console.log(`[MODEL] Finding users by orgId: ${orgId}`);
