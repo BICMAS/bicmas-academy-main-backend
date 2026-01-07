@@ -15,6 +15,14 @@ export class CourseModel {
         });
     }
 
+    static async findManyByIds(ids) {  // FIXED: New method for batch fetch
+        if (!Array.isArray(ids) || ids.length === 0) return [];
+        return prisma.course.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, title: true, status: true }  // Minimal for validation
+        });
+    }
+
     static async findById(id) {
         return prisma.course.findUnique({
             where: { id },
@@ -83,6 +91,12 @@ export class CourseModel {
             where: { id },
             data: { status: 'PUBLISHED' },
             include: { modules: { include: { lessons: true } } }
+        });
+    }
+
+    static async delete(id) {
+        return prisma.module.delete({
+            where: { id }
         });
     }
 }

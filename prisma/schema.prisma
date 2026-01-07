@@ -34,7 +34,8 @@ enum Department {
 
 enum UserStatus {
   ACTIVE
-  SUSPENDED
+  INACTIVE
+  BLOCKED
   DEACTIVATED
 }
 
@@ -74,34 +75,36 @@ enum AttemptStatus {
 }
 
 model User {
-  id           String         @id @default(cuid()) @db.VarChar(25)
-  username     String?        @unique
-  email        String         @unique
-  fullName     String
-  password     String         @db.VarChar(255)
-  timezone     String         @default("UTC")
-  status       UserStatus     @default(ACTIVE)
-  authProvider AuthProvider   @default(LOCAL)
-  userRole     UserRole       @default(LEARNER)
-  department   Department?
-  phoneNumber  String?        @unique
-  metadata     Json?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  orgId        String?        @db.VarChar(25)
-  groupId      String?        @db.VarChar(25)
-  organization Organization?  @relation("UserInOrg", fields: [orgId], references: [id])
-  createdOrgs  Organization[] @relation("CreatedBy")
-
-  devices             Device[]
-  groupMembers        GroupMember[]
-  coursesCreated      Course[]       @relation("CreatedBy")
-  assignmentsAssigner Assignment[]   @relation("Assigner")
-  assignmentsLearner  Assignment[]   @relation("LearnerAssignments") // FIXED: Matching name
-  userAttempts        Attempt[]      @relation("UserAttempts") // FIXED: Matching name
-  certificates        Certificate[]
-  auditLogsActor      AuditLog[]     @relation("Actor")
-  scormPackages       ScormPackage[]
+  id                          String                  @id @default(cuid()) @db.VarChar(25)
+  username                    String?                 @unique
+  email                       String                  @unique
+  fullName                    String
+  password                    String                  @db.VarChar(255)
+  timezone                    String                  @default("UTC")
+  status                      UserStatus              @default(ACTIVE)
+  authProvider                AuthProvider            @default(LOCAL)
+  userRole                    UserRole                @default(LEARNER)
+  department                  Department?
+  phoneNumber                 String?                 @unique
+  metadata                    Json?
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+  orgId                       String?                 @db.VarChar(25)
+  groupId                     String?                 @db.VarChar(25)
+  organization                Organization?           @relation("UserInOrg", fields: [orgId], references: [id])
+  createdOrgs                 Organization[]          @relation("CreatedBy")
+  learningPathsCreated        LearningPath[]          @relation("LearningPathsCreated")
+  learningPathEnrolments      LearningPathEnrolment[]
+  devices                     Device[]
+  groupMembers                GroupMember[]
+  coursesCreated              Course[]                @relation("CreatedBy")
+  assignmentsAssigner         Assignment[]            @relation("Assigner")
+  assignmentsLearner          Assignment[]            @relation("LearnerAssignments") // FIXED: Matching name
+  userAttempts                Attempt[]               @relation("UserAttempts") // FIXED: Matching name
+  certificates                Certificate[]
+  auditLogsActor              AuditLog[]              @relation("Actor")
+  scormPackages               ScormPackage[]
+  certificateTemplatesCreated CertificateTemplate[]   @relation("CertificateTemplatesCreated")
 
   @@map("users")
 }
@@ -333,6 +336,21 @@ model Certificate {
   @@map("certificates")
 }
 
+model CertificateTemplate {
+  id          String   @id @default(cuid()) @db.VarChar(25)
+  filename    String
+  blobUrl     String
+  mimeType    String?
+  description String?
+  createdBy   String   @db.VarChar(25)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator User @relation("CertificateTemplatesCreated", fields: [createdBy], references: [id])
+
+  @@map("certificate_templates")
+}
+
 // AuditLogs: Event logging
 model AuditLog {
   id         String   @id @default(cuid()) @db.VarChar(25)
@@ -347,4 +365,41 @@ model AuditLog {
 
   @@index([eventType, createdAt])
   @@map("audit_logs")
+}
+
+model LearningPath {
+  id                 String             @id @default(cuid()) @db.VarChar(25)
+  title              String // Required
+  description        String? // Optional
+  enrolmentRule      String? // e.g., 'manual', 'auto', 'prereq'
+  curriculumSequence Json // FIXED: Array of course IDs for order [ "course1", "course2" ]
+  status             LearningPathStatus @default(DRAFT)
+  createdBy          String             @db.VarChar(25)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  creator    User                    @relation("LearningPathsCreated", fields: [createdBy], references: [id])
+  enrolments LearningPathEnrolment[]
+
+  @@map("learning_paths")
+}
+
+model LearningPathEnrolment {
+  id             String    @id @default(cuid()) @db.VarChar(25)
+  learningPathId String    @db.VarChar(25)
+  userId         String    @db.VarChar(25)
+  enrolledAt     DateTime  @default(now())
+  completedAt    DateTime?
+  progress       Float?    @default(0) // 0-100%
+
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([learningPathId, userId])
+  @@map("learning_path_enrolments")
+}
+
+enum LearningPathStatus {
+  DRAFT
+  PUBLISHED
 }

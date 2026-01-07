@@ -77,4 +77,26 @@ export class CourseService {
         if (!course) throw new Error('Course not found');
         return course;
     }
+
+    static async deleteCourse(id, requester) {
+        const course = await CourseModel.findById(id);
+        if (!course) throw new Error('Course not found');
+        if (course.createdBy !== requester.id && requester.userRole !== 'SUPER_ADMIN') {
+            throw new Error('Only creator or super admin can delete');
+        }
+
+        await CourseModel.delete(id);
+        return { message: 'Course deleted successfully' };
+    }
+
+    static async deleteModule(courseId, moduleId, requester) {
+        const course = await CourseModel.findById(courseId);
+        if (!course) throw new Error('Course not found');
+        if (course.createdBy !== requester.id && requester.userRole !== 'SUPER_ADMIN') {
+            throw new Error('Only creator or super admin can delete');
+        }
+
+        await ModuleModel.delete(moduleId);  // Assume ModuleModel; cascades lessons
+        return { message: 'Module deleted successfully' };
+    }
 }

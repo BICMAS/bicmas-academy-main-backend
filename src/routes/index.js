@@ -6,6 +6,8 @@ import scormRouter from './scormRoutes.js';
 import groupRouter from './groupRoutes.js';
 import assignmentRouter from './assignmentRoutes.js';
 import dashboardRouter from './dashboardRoutes.js';
+import learningPathRouter from './learningPathRoute.js';
+import certificateRouter from './certificateRouter.js';
 
 const router = Router();
 
@@ -16,4 +18,7 @@ router.use('/courses', courseRouter);
 router.use('/scorm-packages', scormRouter)
 router.use('/assignments', assignmentRouter);
 router.use('/dashboard', dashboardRouter);
+router.use('/learning-paths', learningPathRouter);
+router.use('/certificates', certificateRouter);
+
 export default router;
