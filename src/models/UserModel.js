@@ -51,4 +51,12 @@ export class UserModel {
     static async bulkCreate(csvData) {
         return prisma.user.createMany({ data: csvData, skipDuplicates: true });
     }
+
+    static async updatePoints(id, points) {
+        return prisma.user.update({
+            where: { id },
+            data: { points: { increment: points } },
+            select: { id: true, fullName: true, points: true, status: true, userRole: true }
+        });
+    }
 }

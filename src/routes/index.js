@@ -8,6 +8,7 @@ import assignmentRouter from './assignmentRoutes.js';
 import dashboardRouter from './dashboardRoutes.js';
 import learningPathRouter from './learningPathRoute.js';
 import certificateRouter from './certificateRouter.js';
+import rewardRouter from './reward.js';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/assignments', assignmentRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/learning-paths', learningPathRouter);
 router.use('/certificates', certificateRouter);
+router.use('/rewards', rewardRouter);
 
 export default router;

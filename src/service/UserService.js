@@ -39,13 +39,13 @@ export class UserService {
         if (users.length === 0) {
             console.log(`[ORG SVC NOTE] ${timestamp} - Empty org, returning []`);
         }
-        return users;  // FIXED: Return empty [] if no users (no throw)
+        return users;
     }
 
     static async getUser(id) {
         const user = await UserModel.findById(id);
         if (!user) throw new Error('User not found');
-        return { ...user, password: undefined };  // Strip sensitive
+        return { ...user, password: undefined };
     }
 
     static async createUser(data, creator) {
@@ -95,4 +95,6 @@ export class UserService {
 
         return { ...user, password: undefined };
     }
+
+
 }

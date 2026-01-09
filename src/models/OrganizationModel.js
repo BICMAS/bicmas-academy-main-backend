@@ -66,4 +66,16 @@ export class OrganizationModel {
             }
         });
     }
+
+    static async findById(id) {
+        return prisma.learningPath.findUnique({
+            where: { id },
+            include: {
+                creator: true,
+                enrolments: {
+                    include: { user: { select: { id: true, fullName: true, email: true } } }
+                }
+            }
+        });
+    }
 }

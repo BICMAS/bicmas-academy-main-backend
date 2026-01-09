@@ -105,6 +105,7 @@ model User {
   auditLogsActor              AuditLog[]              @relation("Actor")
   scormPackages               ScormPackage[]
   certificateTemplatesCreated CertificateTemplate[]   @relation("CertificateTemplatesCreated")
+  points                      Int                     @default(0)
 
   @@map("users")
 }

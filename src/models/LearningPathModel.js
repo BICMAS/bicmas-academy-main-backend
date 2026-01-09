@@ -8,11 +8,15 @@ export class LearningPathModel {
         });
     }
 
-    static async findMany() {
-        return prisma.learningPath.findMany({
-            where: { status: 'PUBLISHED' },
-            include: { creator: true }
+    static async findMany(where = {}) {
+        console.log('[LEARNING PATH MODEL] findMany where:', where);
+        const paths = await prisma.learningPath.findMany({
+            where,
+            include: { creator: true },
+            orderBy: { createdAt: 'desc' }
         });
+        console.log('[LEARNING PATH MODEL] Returned', paths.length, 'paths');
+        return paths;
     }
 
     static async findById(id) {
@@ -36,4 +40,6 @@ export class LearningPathModel {
             include: { learningPath: true, user: true }
         });
     }
+
+
 }

@@ -7,3 +7,12 @@ export const createPath = async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
+
+export const getAllPaths = async (req, res) => {
+    try {
+        const result = await LearningPathService.getAllPaths();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

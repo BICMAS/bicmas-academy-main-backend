@@ -12,6 +12,8 @@ export class LearningPathService {
             throw new Error('Only HR and super admin can create learning paths');
         }
 
+
+
         // Validate courses exist/published
         const courses = await CourseModel.findManyByIds(curriculumSequence);
         if (courses.length !== curriculumSequence.length) throw new Error('Some courses not found or not published');
@@ -27,5 +29,9 @@ export class LearningPathService {
         });
 
         return path;
+    }
+
+    static async getAllPaths() {
+        return LearningPathModel.findMany();
     }
 }
