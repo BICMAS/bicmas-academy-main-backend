@@ -49,4 +49,35 @@ export class DashboardService {
             //criticalAlerts
         };
     }
+
+
+}
+
+export class LearnerDashboardService {
+    static async getLearnerDashboard(user) {
+        console.log('[LEARNER DASHBOARD SERVICE] For user ID:', user.id);
+        const [streak, points, learningHours, coursesDone, averageScore, learningPaths, learningActivity, currentCourse, unfinishedCourses] = await Promise.all([
+            DashboardModel.getLearnerStreak(user.id),
+            DashboardModel.getLearnerPoints(user.id),
+            DashboardModel.getLearnerHours(user.id),
+            DashboardModel.getCoursesDone(user.id),
+            DashboardModel.getAverageScore(user.id),
+            DashboardModel.getLearnerPaths(user.id),
+            DashboardModel.getLearningActivity(user.id),
+            DashboardModel.getCurrentCourse(user.id),
+            DashboardModel.getUnfinishedCourses(user.id)
+        ]);
+
+        return {
+            streak,
+            points,
+            learningHours: Math.round(learningHours * 100) / 100,
+            coursesDone,
+            averageScore: Math.round(averageScore * 100) / 100,
+            learningPaths,
+            learningActivity, // For frontend chart (e.g., bar chart by day)
+            currentCourse,
+            unfinishedCourses
+        };
+    }
 }

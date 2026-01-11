@@ -96,6 +96,7 @@ model User {
   learningPathsCreated        LearningPath[]          @relation("LearningPathsCreated")
   learningPathEnrolments      LearningPathEnrolment[]
   devices                     Device[]
+  streak                      Int                     @default(0)
   groupMembers                GroupMember[]
   coursesCreated              Course[]                @relation("CreatedBy")
   assignmentsAssigner         Assignment[]            @relation("Assigner")
@@ -280,9 +281,10 @@ model Attempt {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
-  user   User   @relation("UserAttempts", fields: [userId], references: [id], onDelete: Cascade) // FIXED: Matching name
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
+  user           User          @relation("UserAttempts", fields: [userId], references: [id], onDelete: Cascade) // FIXED: Matching name
+  course         Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  learningHours  Float?
+  score          Float?
   scormPackage   ScormPackage? @relation(fields: [scormPackageId], references: [id])
   scormPackageId String?       @db.VarChar(25)
   interactions   Interaction[]
@@ -371,10 +373,11 @@ model AuditLog {
 model LearningPath {
   id                 String             @id @default(cuid()) @db.VarChar(25)
   title              String // Required
-  description        String? // Optional
-  enrolmentRule      String? // e.g., 'manual', 'auto', 'prereq'
-  curriculumSequence Json // FIXED: Array of course IDs for order [ "course1", "course2" ]
-  status             LearningPathStatus @default(DRAFT)
+  description        String?
+  department         String?
+  enrolmentRule      String?
+  curriculumSequence Json
+  status             LearningPathStatus @default(PUBLISHED)
   createdBy          String             @db.VarChar(25)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt

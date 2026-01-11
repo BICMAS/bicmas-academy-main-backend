@@ -200,6 +200,140 @@ export class DashboardModel {
         });
     }
 
+    static async getLearnerStreak(userId) {
+        const lastAttempts = await prisma.attempt.findMany({
+            where: { userId, status: 'COMPLETED' },
+            select: { createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 30  // Last 30 days max
+        });
+        let streak = 0;
+        const today = new Date();
+        for (const attempt of lastAttempts) {
+            const attemptDate = new Date(attempt.createdAt);
+            if (attemptDate.toDateString() === today.toDateString()) {
+                streak++;
+                break;
+            }
+            today.setDate(today.getDate() - 1);  // FIXED: Consecutive days
+            if (attemptDate.toDateString() === today.toDateString()) streak++;
+            else break;
+        }
+        return streak;
+    }
+
+    static async getLearnerPoints(userId) {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { points: true } });
+        return user?.points || 0;
+    }
+
+    static async getLearnerHours(userId) {
+        const total = await prisma.attempt.aggregate({
+            where: { userId },
+            _sum: { learningHours: true }
+        });
+        return total._sum.learningHours || 0;
+    }
+
+    static async getCoursesDone(userId) {
+        const uniqueCourses = await prisma.attempt.groupBy({
+            by: ['courseId'],
+            where: { userId, status: 'COMPLETED' },
+            _count: { courseId: true }
+        });
+        return uniqueCourses.length;
+    }
+
+    static async getAverageScore(userId) {
+        const avgResult = await prisma.attempt.aggregate({
+            where: { userId, status: 'COMPLETED' },
+            _avg: { score: true }
+        });
+        return avgResult._avg.score || 0;
+    }
+
+    static async getLearnerPaths(userId) {
+        console.log('[DASHBOARD MODEL] getLearnerPaths for userId:', userId);
+        return prisma.learningPathEnrolment.findMany({
+            where: { userId },
+            include: {
+                learningPath: {
+                    select: {  // FIXED: Scalars + nested relation select
+                        id: true,
+                        title: true,
+                        description: true,
+                        enrolmentRule: true,
+                        curriculumSequence: true,
+                        status: true,
+                        creator: {  // FIXED: Nested select for relation (no include)
+                            select: { id: true, fullName: true }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    static async getLearningActivity(userId) {
+        const attempts = await prisma.attempt.findMany({
+            where: { userId, status: 'COMPLETED' },
+            select: { learningHours: true, createdAt: true },
+            take: 50  // Last 50 for 7 days
+        });
+        const activity = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
+        attempts.forEach(a => {
+            const day = new Date(a.createdAt).getDay();  // 0=Sun, 6=Sat
+            activity[Object.keys(activity)[day]] += a.learningHours || 0;
+        });
+        return activity;
+    }
+
+    static async getCurrentCourse(userId) {
+        console.log('[DASHBOARD MODEL] getCurrentCourse for userId:', userId);
+        try {
+            // FIXED: First find in-progress attempt (direct User → Attempt)
+            const attempt = await prisma.attempt.findFirst({
+                where: { userId, status: 'IN_PROGRESS' },
+                include: { course: true }
+            });
+            if (!attempt) return null;
+
+            // FIXED: Then find assignment for that course and user (Assignment → Course)
+            const assignment = await prisma.assignment.findFirst({
+                where: { courseId: attempt.courseId, assigneeUserId: userId },
+                include: { course: true }
+            });
+
+            return assignment || { course: attempt.course, attempt };  // Fallback to attempt course
+        } catch (error) {
+            console.error('[DASHBOARD MODEL ERROR getCurrentCourse]', error.message);
+            return null;
+        }
+    }
+    static async getUnfinishedCourses(userId) {
+        console.log('[DASHBOARD MODEL] getUnfinishedCourses for userId:', userId);
+        try {
+            // FIXED: First find all assignments for user
+            const assignments = await prisma.assignment.findMany({
+                where: { assigneeUserId: userId },
+                include: { course: true }
+            });
+
+            // FIXED: Second, find completed courses for user (unique courseIds)
+            const completedCourses = await prisma.attempt.findMany({
+                where: { userId, status: 'COMPLETED' },
+                select: { courseId: true }
+            }).then(attempts => [...new Set(attempts.map(a => a.courseId))]);  // Unique courseIds
+
+            // FIXED: Filter assignments without completed course
+            const unfinished = assignments.filter(a => !completedCourses.includes(a.courseId));
+            return unfinished;
+        } catch (error) {
+            console.error('[DASHBOARD MODEL ERROR getUnfinishedCourses]', error.message);
+            return [];
+        }
+    }
+
     // static async getCriticalAlerts(threshold = 50) {  // Courses with <50% completion
     //     console.log('[DASHBOARD MODEL] getCriticalAlerts');
     //     const courses = await prisma.course.findMany({

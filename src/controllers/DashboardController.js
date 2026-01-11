@@ -1,4 +1,4 @@
-import { DashboardService } from '../service/DashboardService.js';
+import { DashboardService, LearnerDashboardService } from '../service/DashboardService.js';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
 
 export const getHRDashboard = async (req, res) => {
@@ -20,6 +20,15 @@ export const getSuperAdminDashboard = async (req, res) => {
         res.json(dashboard);
     } catch (error) {
         console.error('[DASHBOARD CTRL SUPER ERROR]', error.message);
+        res.status(403).json({ error: error.message });
+    }
+};
+
+export const getLearnerDashboard = async (req, res) => {
+    try {
+        const result = await LearnerDashboardService.getLearnerDashboard(req.user);
+        res.json(result);
+    } catch (error) {
         res.status(403).json({ error: error.message });
     }
 };

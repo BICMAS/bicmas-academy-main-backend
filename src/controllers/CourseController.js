@@ -64,11 +64,11 @@ export const deleteCourse = async (req, res) => {
 export const deleteModule = async (req, res) => {
     try {
         const { courseId, moduleId } = req.params;
-        console.log('[COURSE CTRL] Delete module request:', { courseId, moduleId });  // FIXED: Log request
+        console.log('[COURSE CTRL] Delete module request:', { courseId, moduleId });
         const result = await CourseService.deleteModule(courseId, moduleId, req.user);
         res.json(result);
     } catch (error) {
-        console.error('[COURSE CTRL ERROR deleteModule]', error.message);  // FIXED: Log error
+        console.error('[COURSE CTRL ERROR deleteModule]', error.message);
         res.status(404).json({ error: error.message });
     }
 };

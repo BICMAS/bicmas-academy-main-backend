@@ -8,3 +8,12 @@ export const createAssignments = async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
+
+export const getAssignedCourses = async (req, res) => {
+    try {
+        const result = await AssignmentService.getAssignedCourses(req.user);
+        res.json(result);
+    } catch (error) {
+        res.status(403).json({ error: error.message });
+    }
+};

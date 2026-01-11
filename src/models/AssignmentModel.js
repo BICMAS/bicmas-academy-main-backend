@@ -34,4 +34,23 @@ export class AssignmentModel {
             include: { course: true, assigner: { select: { fullName: true } } }
         });
     }
+
+    static async getAssignedCourses(userId) {
+        return prisma.assignment.findMany({
+            where: { assigneeUserId: userId },
+            include: {
+                course: {
+                    include: {
+                        modules: {
+                            include: { lessons: true }
+                        }
+                    }
+                },
+                attempts: {
+                    select: { status: true, completionPercentage: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
 }
