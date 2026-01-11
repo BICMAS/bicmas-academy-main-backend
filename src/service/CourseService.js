@@ -1,4 +1,5 @@
 import { CourseModel } from '../models/CourseModel.js';
+import { ModuleModel } from '../models/ModuleModel.js';
 
 export class CourseService {
     static async createDraft(data, creatorId) {
@@ -79,24 +80,33 @@ export class CourseService {
     }
 
     static async deleteCourse(id, requester) {
+        // FIXED: Validate course exists
         const course = await CourseModel.findById(id);
         if (!course) throw new Error('Course not found');
         if (course.createdBy !== requester.id && requester.userRole !== 'SUPER_ADMIN') {
             throw new Error('Only creator or super admin can delete');
         }
 
-        await CourseModel.delete(id);
+        console.log('[COURSE SERVICE] Deleting course ID:', id);  // FIXED: Log for trace
+        await CourseModel.delete(id);  // FIXED: Cascades to modules/lessons/assignments
         return { message: 'Course deleted successfully' };
     }
 
     static async deleteModule(courseId, moduleId, requester) {
+        // FIXED: Validate course exists
         const course = await CourseModel.findById(courseId);
         if (!course) throw new Error('Course not found');
         if (course.createdBy !== requester.id && requester.userRole !== 'SUPER_ADMIN') {
             throw new Error('Only creator or super admin can delete');
         }
 
-        await ModuleModel.delete(moduleId);  // Assume ModuleModel; cascades lessons
+        // FIXED: Validate module exists and belongs to course
+        const module = await ModuleModel.findById(moduleId);
+        if (!module) throw new Error('Module not found');
+        if (module.courseId !== courseId) throw new Error('Module not in course');
+
+        console.log('[COURSE SERVICE] Deleting module ID:', moduleId, 'from course:', courseId);  // FIXED: Log for debug
+        await ModuleModel.delete(moduleId);  // Cascades lessons
         return { message: 'Module deleted successfully' };
     }
 }

@@ -52,19 +52,23 @@ export const publishCourse = async (req, res) => {
 export const deleteCourse = async (req, res) => {
     try {
         const { id } = req.params;
+        console.log('[COURSE CTRL] Delete course request ID:', id);  // FIXED: Log request
         const result = await CourseService.deleteCourse(id, req.user);
         res.json(result);
     } catch (error) {
-        res.status(403).json({ error: error.message });
+        console.error('[COURSE CTRL ERROR deleteCourse]', error.message);  // FIXED: Log error
+        res.status(404).json({ error: error.message });
     }
 };
 
 export const deleteModule = async (req, res) => {
     try {
         const { courseId, moduleId } = req.params;
+        console.log('[COURSE CTRL] Delete module request:', { courseId, moduleId });  // FIXED: Log request
         const result = await CourseService.deleteModule(courseId, moduleId, req.user);
         res.json(result);
     } catch (error) {
-        res.status(403).json({ error: error.message });
+        console.error('[COURSE CTRL ERROR deleteModule]', error.message);  // FIXED: Log error
+        res.status(404).json({ error: error.message });
     }
 };

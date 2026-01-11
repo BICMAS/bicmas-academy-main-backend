@@ -26,7 +26,14 @@ export class CourseModel {
     static async findById(id) {
         return prisma.course.findUnique({
             where: { id },
-            include: { modules: { include: { lessons: { include: { scormPackage: true } } } } }
+            select: { id: true, title: true, createdBy: true, status: true }  // FIXED: Minimal for validation
+        });
+    }
+
+    static async delete(id) {
+        console.log('[COURSE MODEL] Deleting ID:', id);  // FIXED: Log before delete
+        return prisma.course.delete({
+            where: { id }
         });
     }
 
@@ -94,9 +101,5 @@ export class CourseModel {
         });
     }
 
-    static async delete(id) {
-        return prisma.module.delete({
-            where: { id }
-        });
-    }
+
 }
