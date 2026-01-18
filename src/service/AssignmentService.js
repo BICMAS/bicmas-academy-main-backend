@@ -41,21 +41,38 @@ export class AssignmentService {
     }
 
     static async getAssignedCourses(user) {
-        if (user.userRole !== 'LEARNER') throw new Error('Only learners can view assigned courses');  // Optional check
+        if (user.userRole !== 'LEARNER') {
+            throw new Error('Only learners can view assigned courses');
+        }
 
-        const assignments = await AssignmentModel.getAssignedCourses(user.id);
-        return assignments.map(a => ({
-            ...a,
-            progress: a.attempts.reduce((sum, attempt) => sum + (attempt.completionPercentage || 0), 0) / Math.max(a.attempts.length, 1)
-        }));
-    }
-    static async getAssignedCourses(user) {
-        if (user.userRole !== 'LEARNER') throw new Error('Only learners can view assigned courses');  // Optional check
+        const assignments = await AssignmentModel.findByLearnerId(user.id);
 
-        const assignments = await AssignmentModel.getAssignedCourses(user.id);  // FIXED: Call correct method
-        return assignments.map(a => ({
-            ...a,
-            progress: a.assigneeUser?.attempts.reduce((sum, attempt) => sum + (attempt.completionPercentage || 0), 0) / Math.max(a.assigneeUser?.attempts.length || 1, 1) || 0  // FIXED: Safe chaining, fallback 0
-        }));
+        return assignments.map(assignment => {
+            // Get attempts for THIS specific course
+            const courseAttempts = assignment.assigneeUser?.userAttempts?.filter(
+                attempt => attempt.courseId === assignment.courseId
+            ) || [];
+
+            // Calculate progress
+            let progress = 0;
+            if (courseAttempts.length > 0) {
+                // Use the most recent attempt
+                const latestAttempt = courseAttempts.reduce((latest, current) => {
+                    return (!latest || new Date(current.createdAt) > new Date(latest.createdAt))
+                        ? current
+                        : latest;
+                }, null);
+
+                progress = latestAttempt?.completionPercentage || 0;
+            }
+
+            return {
+                ...assignment,
+                progress: Math.min(100, Math.max(0, progress)),
+                totalAttempts: courseAttempts.length,
+                attempts: courseAttempts  // Optional: include filtered attempts
+            };
+        });
     }
+
 }

@@ -258,11 +258,12 @@ model Assignment {
   recurrenceRule  String?
   createdAt       DateTime  @default(now())
 
-  course       Course  @relation("CourseAssignments", fields: [courseId], references: [id], onDelete: Cascade)
-  assigner     User    @relation("Assigner", fields: [assignerId], references: [id])
-  assigneeUser User?   @relation("LearnerAssignments", fields: [assigneeUserId], references: [id])
-  group        Group?  @relation(fields: [groupId], references: [id])
-  groupId      String? @db.VarChar(25)
+  course       Course    @relation("CourseAssignments", fields: [courseId], references: [id], onDelete: Cascade)
+  assigner     User      @relation("Assigner", fields: [assignerId], references: [id])
+  assigneeUser User?     @relation("LearnerAssignments", fields: [assigneeUserId], references: [id])
+  group        Group?    @relation(fields: [groupId], references: [id])
+  groupId      String?   @db.VarChar(25)
+  attempts     Attempt[] @relation("AssignmentAttempts")
 
   @@unique([courseId, assigneeUserId])
   @@unique([courseId, assigneeGroupId]) // FIXED: Unique for groups too
@@ -280,15 +281,16 @@ model Attempt {
   dueDate              DateTime?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
-
-  user           User          @relation("UserAttempts", fields: [userId], references: [id], onDelete: Cascade) // FIXED: Matching name
-  course         Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  learningHours  Float?
-  score          Float?
-  scormPackage   ScormPackage? @relation(fields: [scormPackageId], references: [id])
-  scormPackageId String?       @db.VarChar(25)
-  interactions   Interaction[]
-  suspendDatum   SuspendDatum?
+  assignmentId         String?       @db.VarChar(25) // FIXED: Optional FK to Assignment
+  assignment           Assignment?   @relation("AssignmentAttempts", fields: [assignmentId], references: [id], onDelete: SetNull)
+  user                 User          @relation("UserAttempts", fields: [userId], references: [id], onDelete: Cascade) // FIXED: Matching name
+  course               Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  learningHours        Float?
+  score                Float?
+  scormPackage         ScormPackage? @relation(fields: [scormPackageId], references: [id])
+  scormPackageId       String?       @db.VarChar(25)
+  interactions         Interaction[]
+  suspendDatum         SuspendDatum?
 
   @@index([userId])
   @@index([courseId])

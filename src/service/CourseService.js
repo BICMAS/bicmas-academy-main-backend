@@ -19,7 +19,6 @@ export class CourseService {
         const course = await CourseModel.findById(id);
         if (!course) throw new Error('Course not found');
 
-
         // Validate modules if provided
         if (data.modules !== undefined) {
             if (!Array.isArray(data.modules)) {
@@ -43,20 +42,23 @@ export class CourseService {
             });
         }
 
-        // Prepare data for model
+
         const updateData = {
             title: data.title,
             description: data.description || null,
             tags: data.tags || null,
             visibility: data.visibility || null,
             version: data.version || null,
-            scormPackageId: data.scormPackageId || null
+            scormPackageId: data.scormPackageId || null,
+            status: data.status || 'PUBLISHED'
         };
 
-        // Pass modules as-is (array)
+
         if (data.modules !== undefined) {
             updateData.modules = data.modules;
         }
+
+        console.log('[COURSE SERVICE] Updating with status:', updateData.status);
 
         return await CourseModel.updateNested(id, updateData);
     }

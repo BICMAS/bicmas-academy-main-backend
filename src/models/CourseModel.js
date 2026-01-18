@@ -47,6 +47,7 @@ export class CourseModel {
             visibility: data.visibility || null,
             version: data.version || null,
             scormPackageId: data.scormPackageId || null,
+            status: data.status || 'PUBLISHED',  // FIXED: Pass status from service
             updatedAt: new Date()
         };
 
@@ -92,6 +93,7 @@ export class CourseModel {
             }
         });
     }
+
 
     static async publish(id) {
         return prisma.course.update({

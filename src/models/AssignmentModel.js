@@ -73,4 +73,45 @@ export class AssignmentModel {
             orderBy: { createdAt: 'desc' }
         });
     }
+
+    static async findByLearnerId(learnerId) {
+        console.log('[ASSIGNMENT MODEL] findByLearnerId:', learnerId);
+
+        return prisma.assignment.findMany({
+            where: { assigneeUserId: learnerId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                course: {
+                    include: {
+                        modules: {
+                            include: {
+                                lessons: true
+                            }
+                        }
+                    }
+                },
+                assigner: {
+                    select: {
+                        fullName: true,
+                        email: true  // Optional: add more user info if needed
+                    }
+                },
+                assigneeUser: {
+                    include: {
+                        // ✅ Use the correct relation name: "userAttempts" not "attempts"
+                        userAttempts: {
+                            select: {
+                                status: true,
+                                completionPercentage: true,
+                                createdAt: true,
+                                courseId: true  // Add this to filter by course
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
 }
+
