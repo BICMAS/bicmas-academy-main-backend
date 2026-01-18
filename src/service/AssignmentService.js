@@ -43,10 +43,19 @@ export class AssignmentService {
     static async getAssignedCourses(user) {
         if (user.userRole !== 'LEARNER') throw new Error('Only learners can view assigned courses');  // Optional check
 
-        const assignments = await AssignmentModel.getAssignedCourse(user.id);
+        const assignments = await AssignmentModel.getAssignedCourses(user.id);
         return assignments.map(a => ({
             ...a,
             progress: a.attempts.reduce((sum, attempt) => sum + (attempt.completionPercentage || 0), 0) / Math.max(a.attempts.length, 1)
+        }));
+    }
+    static async getAssignedCourses(user) {
+        if (user.userRole !== 'LEARNER') throw new Error('Only learners can view assigned courses');  // Optional check
+
+        const assignments = await AssignmentModel.getAssignedCourses(user.id);  // FIXED: Call correct method
+        return assignments.map(a => ({
+            ...a,
+            progress: a.assigneeUser?.attempts.reduce((sum, attempt) => sum + (attempt.completionPercentage || 0), 0) / Math.max(a.assigneeUser?.attempts.length || 1, 1) || 0  // FIXED: Safe chaining, fallback 0
         }));
     }
 }

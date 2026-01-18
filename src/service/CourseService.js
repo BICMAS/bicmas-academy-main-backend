@@ -18,7 +18,7 @@ export class CourseService {
     static async updateCourse(id, data) {
         const course = await CourseModel.findById(id);
         if (!course) throw new Error('Course not found');
-        if (course.status !== 'DRAFT') throw new Error('Only drafts can be updated');
+
 
         // Validate modules if provided
         if (data.modules !== undefined) {
@@ -64,7 +64,6 @@ export class CourseService {
     static async publishCourse(id, data) {
         const course = await CourseModel.findById(id);
         if (!course) throw new Error('Course not found');
-        if (course.status !== 'DRAFT') throw new Error('Only drafts can be published');
         if (!data.modules || data.modules.length === 0) throw new Error('Course must have at least one module');
 
         return await CourseModel.publish(id);
