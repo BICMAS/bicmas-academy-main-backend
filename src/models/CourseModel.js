@@ -15,23 +15,37 @@ export class CourseModel {
         });
     }
 
-    static async findManyByIds(ids) {  // FIXED: New method for batch fetch
+    static async findManyByIds(ids) {
         if (!Array.isArray(ids) || ids.length === 0) return [];
         return prisma.course.findMany({
             where: { id: { in: ids } },
-            select: { id: true, title: true, status: true }  // Minimal for validation
+            select: { id: true, title: true, status: true }
         });
     }
 
     static async findById(id) {
         return prisma.course.findUnique({
             where: { id },
-            select: { id: true, title: true, createdBy: true, status: true }  // FIXED: Minimal for validation
+            include: {
+                modules: {
+                    include: {
+                        lessons: {
+                            include: {
+                                scormPackage: true
+                            }
+                        }
+                    }
+                },
+                scormPackage: true,
+                creator: {
+                    select: { id: true, fullName: true, email: true }
+                }
+            }
         });
     }
 
     static async delete(id) {
-        console.log('[COURSE MODEL] Deleting ID:', id);  // FIXED: Log before delete
+        console.log('[COURSE MODEL] Deleting ID:', id);
         return prisma.course.delete({
             where: { id }
         });
@@ -47,19 +61,19 @@ export class CourseModel {
             visibility: data.visibility || null,
             version: data.version || null,
             scormPackageId: data.scormPackageId || null,
-            status: data.status || 'PUBLISHED',  // FIXED: Pass status from service
+            status: data.status || 'PUBLISHED',
             updatedAt: new Date()
         };
 
-        // Only add modules if we have them
+
         if (data.modules && Array.isArray(data.modules)) {
             if (data.modules.length === 0) {
-                // If empty array, delete all modules
+
                 updateData.modules = {
                     deleteMany: {}
                 };
             } else {
-                // Create new modules (old ones will be deleted due to cascade or you need to delete them first)
+
                 updateData.modules = {
                     create: data.modules.map(module => ({
                         name: module.name,

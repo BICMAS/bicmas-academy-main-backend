@@ -70,7 +70,7 @@ export class AssignmentService {
                 ...assignment,
                 progress: Math.min(100, Math.max(0, progress)),
                 totalAttempts: courseAttempts.length,
-                attempts: courseAttempts  // Optional: include filtered attempts
+                attempts: courseAttempts
             };
         });
     }

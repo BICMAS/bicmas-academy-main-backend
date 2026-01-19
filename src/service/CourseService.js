@@ -19,19 +19,19 @@ export class CourseService {
         const course = await CourseModel.findById(id);
         if (!course) throw new Error('Course not found');
 
-        // Validate modules if provided
+
         if (data.modules !== undefined) {
             if (!Array.isArray(data.modules)) {
                 throw new Error('Modules must be an array');
             }
 
-            // Validate each module
+
             data.modules.forEach((module, index) => {
                 if (!module.name) {
                     throw new Error(`Module ${index + 1} name is required`);
                 }
 
-                // Validate lessons if provided
+
                 if (module.lessons && Array.isArray(module.lessons)) {
                     module.lessons.forEach((lesson, lessonIndex) => {
                         if (!lesson.title) {
@@ -81,33 +81,33 @@ export class CourseService {
     }
 
     static async deleteCourse(id, requester) {
-        // FIXED: Validate course exists
+
         const course = await CourseModel.findById(id);
         if (!course) throw new Error('Course not found');
         if (course.createdBy !== requester.id && requester.userRole !== 'SUPER_ADMIN') {
             throw new Error('Only creator or super admin can delete');
         }
 
-        console.log('[COURSE SERVICE] Deleting course ID:', id);  // FIXED: Log for trace
-        await CourseModel.delete(id);  // FIXED: Cascades to modules/lessons/assignments
+        console.log('[COURSE SERVICE] Deleting course ID:', id);
+        await CourseModel.delete(id);
         return { message: 'Course deleted successfully' };
     }
 
     static async deleteModule(courseId, moduleId, requester) {
-        // FIXED: Validate course exists
+
         const course = await CourseModel.findById(courseId);
         if (!course) throw new Error('Course not found');
         if (course.createdBy !== requester.id && requester.userRole !== 'SUPER_ADMIN') {
             throw new Error('Only creator or super admin can delete');
         }
 
-        // FIXED: Validate module exists and belongs to course
+
         const module = await ModuleModel.findById(moduleId);
         if (!module) throw new Error('Module not found');
         if (module.courseId !== courseId) throw new Error('Module not in course');
 
-        console.log('[COURSE SERVICE] Deleting module ID:', moduleId, 'from course:', courseId);  // FIXED: Log for debug
-        await ModuleModel.delete(moduleId);  // Cascades lessons
+        console.log('[COURSE SERVICE] Deleting module ID:', moduleId, 'from course:', courseId);
+        await ModuleModel.delete(moduleId);
         return { message: 'Module deleted successfully' };
     }
 }
