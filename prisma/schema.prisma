@@ -292,6 +292,7 @@ model Attempt {
   interactions         Interaction[]
   suspendDatum         SuspendDatum?
 
+  @@unique([userId, courseId])
   @@index([userId])
   @@index([courseId])
   @@map("attempts")
@@ -302,9 +303,9 @@ model Interaction {
   id               String   @id @default(cuid()) @db.VarChar(25)
   attemptId        String   @db.VarChar(25)
   interactionIndex Int
-  interactionType  String // e.g., 'choice', 'true-false'
-  correctResponse  Json? // Array/string
-  learnerResponse  Json? // Flexible
+  interactionType  String
+  correctResponse  Json?
+  learnerResponse  Json?
   timestamp        DateTime
 
   attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
