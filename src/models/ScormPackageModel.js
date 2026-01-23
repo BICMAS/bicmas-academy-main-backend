@@ -102,9 +102,10 @@ export class ScormPackageModel {
     }
 
     static async findById(id) {
+        console.log('[SCORM MODEL] findById:', id);
         return prisma.scormPackage.findUnique({
             where: { id },
-            include: { lessons: true, uploader: true }
+            include: { uploader: true }
         });
     }
 
@@ -112,5 +113,23 @@ export class ScormPackageModel {
         const pkg = await this.findById(id);
         if (!pkg) throw new Error('Package not found');
         return pkg.manifestJson;
+    }
+
+    static async getLaunchUrl(id) {
+        const pkg = await this.findById(id);
+        if (!pkg) throw new Error('Package not found');
+
+        // Parse manifest for launch
+        const manifestJson = pkg.manifestJson;
+        if (manifestJson.manifest && manifestJson.manifest.organizations && manifestJson.manifest.organizations.organization) {
+            const org = manifestJson.manifest.organizations.organization;
+            if (org.item && org.item[0] && org.item[0].$) {
+                const launchHref = org.item[0].$.identifierref;  // Get href from identifierref
+                return `${pkg.storagePath}${launchHref}.html`;
+            }
+        }
+
+        // Fallback to first blob
+        return pkg.blobs[0] || `${pkg.storagePath}index.html`;
     }
 }

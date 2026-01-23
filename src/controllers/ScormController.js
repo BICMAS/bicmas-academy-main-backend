@@ -1,4 +1,5 @@
 import { ScormService } from '../service/ScormService.js';
+import { ScormPackageModel } from '../models/ScormPackageModel.js';
 
 export const uploadPackage = async (req, res) => {
     console.log('[UPLOAD CTRL START] Method: POST URL: /api/v1/scorm-packages');
@@ -27,5 +28,28 @@ export const getManifest = async (req, res) => {
         res.json(manifest);
     } catch (error) {
         res.status(404).json({ error: error.message });
+    }
+};
+
+export const getLaunch = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { file } = req.query;
+        console.log('[SCORM CTRL] getLaunch ID:', id, 'file:', file);  // FIXED: Log request
+
+        if (!file) return res.status(400).json({ error: 'File param required (e.g., ?file=index)' });
+
+        const pkg = await ScormPackageModel.findById(id);
+        if (!pkg) return res.status(404).json({ error: 'Package not found' });
+
+        // FIXED: Compute direct Blob URL (no SDK fetch—public, iframe-safe)
+        const launchPath = `${pkg.storagePath}${file}.html`;  // e.g., scorm/2025-12-20T/ res/index.html
+        const launchUrl = `https://blob.vercel-storage.com/${launchPath}`;  // FIXED: Full public URL
+
+        console.log('[SCORM CTRL] Direct launch URL:', launchUrl);  // FIXED: Log for debug
+        res.json({ launchUrl });  // FIXED: Return URL (frontend iframes it)
+    } catch (error) {
+        console.error('[SCORM LAUNCH ERROR]', error.message);
+        res.status(404).json({ error: 'Failed to compute launch URL' });
     }
 };

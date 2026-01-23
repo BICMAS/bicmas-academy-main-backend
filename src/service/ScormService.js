@@ -19,5 +19,15 @@ export class ScormService {
         }
     }
 
-    // ... other methods (getPackage, getManifest) unchanged
+    static async getManifest(id) {
+        console.log('[SCORM SERVICE] getManifest for ID:', id);  // FIXED: Log ID
+        const pkg = await ScormPackageModel.findById(id);
+        console.log('[SCORM SERVICE] Package found:', pkg ? 'YES' : 'NO');  // FIXED: Log if found
+        if (!pkg) throw new Error('Package not found');
+        console.log('[SCORM SERVICE] Manifest JSON keys:', pkg.manifestJson ? Object.keys(pkg.manifestJson) : 'NULL');  // FIXED: Log manifest content
+        if (!pkg.manifestJson || Object.keys(pkg.manifestJson).length === 0) {
+            throw new Error('Manifest not parsed during upload—re-upload package');
+        }
+        return pkg.manifestJson;
+    }
 }
