@@ -235,14 +235,14 @@ model ScormPackage {
   manifestJson Json
   scormVersion ScormVersion
   encrypted    Boolean      @default(false)
-  checksum     String       @unique
+  checksum     String
   uploadedBy   String       @db.VarChar(25)
   uploadedAt   DateTime     @default(now())
-
-  courses  Course[]
-  lessons  Lesson[]
-  attempts Attempt[]
-  uploader User?     @relation(fields: [uploadedBy], references: [id])
+  blobs        String[]
+  courses      Course[]
+  lessons      Lesson[]
+  attempts     Attempt[]
+  uploader     User?        @relation(fields: [uploadedBy], references: [id])
 
   @@map("scorm_packages")
 }
