@@ -236,11 +236,14 @@ model ScormPackage {
   scormVersion ScormVersion
   encrypted    Boolean      @default(false)
   checksum     String
+  launchFile   String?
   uploadedBy   String       @db.VarChar(25)
   uploadedAt   DateTime     @default(now())
   blobs        String[]
   courses      Course[]
   lessons      Lesson[]
+  fileCount    Int
+  packageSize  Int
   attempts     Attempt[]
   uploader     User?        @relation(fields: [uploadedBy], references: [id])
 

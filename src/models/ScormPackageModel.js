@@ -9,6 +9,8 @@ import dotenv from 'dotenv';
 dotenv.config()
 import { S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import mime from 'mime-types';
+
 
 
 
@@ -19,147 +21,451 @@ const s3Client = new S3Client({
         accessKeyId: process.env.AMAZON_S3_ACCESS_KEY_ID,
         secretAccessKey: process.env.AMAZON_S3_ACCESS_SECRET,
     },
+    maxAttempts: 3,
 });
 
 export class ScormPackageModel {
     static async uploadAndExtract(filePath, filename, uploadedBy) {
-        console.log('[MODEL EXTRACT START] File path:', filePath, 'Filename:', filename);
+        console.log('[SCORM UPLOAD START]', { filePath, filename, uploadedBy });
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const safeFilename = filename.replace(/[^a-zA-Z0-9-_.]/g, '_').replace('.zip', '');
-        const folderHandle = `${timestamp}-${safeFilename}/`; // no 'scorm/' prefix if you want
+        // Generate unique folder name
+        const timestamp = Date.now();
+        const safeFilename = filename
+            .replace(/[^a-zA-Z0-9-_.]/g, '_')
+            .replace(/\.zip$/i, '')
+            .substring(0, 100);
+        const folderHandle = `scorm/${timestamp}-${safeFilename}/`;
 
-        const tempDir = path.join(process.cwd(), 'uploads/temp');
-        const extractDir = path.join(tempDir, folderHandle);
+        // Create temp directories
+        const tempDir = path.join(process.cwd(), 'uploads', 'temp');
+        const extractDir = path.join(tempDir, folderHandle.replace(/\//g, '-'));
+
+        // Ensure directories exist
         fs.mkdirSync(tempDir, { recursive: true });
+        if (fs.existsSync(extractDir)) {
+            fs.rmSync(extractDir, { recursive: true, force: true });
+        }
         fs.mkdirSync(extractDir, { recursive: true });
-        console.log('[MODEL MKDIR OK] Extract dir:', extractDir);
+
+        let manifestJson = null;
+        let launchFile = 'index.html';
+        let scormVersion = 'SCORM_1_2'; // Default enum value
+        const uploadedUrls = [];
 
         try {
-            // Extract ZIP
+            // 1. Extract ZIP file
+            console.log('[SCORM] Extracting ZIP to:', extractDir);
             const zip = new AdmZip(filePath);
             zip.extractAllTo(extractDir, true);
-            console.log('[MODEL ZIP EXTRACT OK] Files extracted');
+            console.log('[SCORM] ZIP extracted successfully');
 
-            // Read manifest
-            const manifestPath = path.join(extractDir, 'imsmanifest.xml');
-            if (!fs.existsSync(manifestPath)) {
-                throw new Error('Missing imsmanifest.xml');
+            // 2. Find and parse manifest file
+            const findManifestFile = (dir) => {
+                const files = [];
+
+                const scanDir = (currentDir) => {
+                    try {
+                        const items = fs.readdirSync(currentDir, { withFileTypes: true });
+
+                        for (const item of items) {
+                            const fullPath = path.join(currentDir, item.name);
+
+                            if (item.isDirectory()) {
+                                scanDir(fullPath);
+                            } else if (item.name.toLowerCase() === 'imsmanifest.xml') {
+                                files.push(fullPath);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[SCORM] Error scanning directory:', err.message);
+                    }
+                };
+
+                scanDir(dir);
+                return files.length > 0 ? files[0] : null;
+            };
+
+            const manifestPath = findManifestFile(extractDir);
+            if (!manifestPath) {
+                throw new Error('SCORM manifest (imsmanifest.xml) not found in package');
             }
+
+            console.log('[SCORM] Found manifest at:', manifestPath);
             const manifestXml = fs.readFileSync(manifestPath, 'utf8');
-            const manifestJson = await parseStringPromise(manifestXml);
+            manifestJson = await parseStringPromise(manifestXml, {
+                explicitArray: false,
+                mergeAttrs: true,
+                trim: true
+            });
 
-            // Checksum
-            const checksum = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+            // 3. Map SCORM version to Prisma enum
+            const getValidScormVersion = (manifest) => {
+                try {
+                    // From your manifest, it shows: "schemaversion": "2004 4th Edition"
+                    const version = manifest?.manifest?.metadata?.schemaversion ||
+                        manifest?.manifest?.$?.version ||
+                        manifest?.manifest?.$?.scormVersion ||
+                        '1.2';
 
-            // (optional) skip duplicate
-            const existing = await prisma.scormPackage.findFirst({ where: { checksum } });
-            if (existing) {
-                console.log('[MODEL] Duplicate found - returning existing');
-                return existing;
+                    const versionStr = String(version).toUpperCase().trim();
+                    console.log('[SCORM] Raw version detected:', versionStr);
+
+                    // Map to YOUR Prisma enum values
+                    if (versionStr.includes('2004') || versionStr.includes('4TH')) {
+                        return 'V2004'; // Your schema uses V2004
+                    }
+                    if (versionStr.includes('1.2') || versionStr === '1.2' ||
+                        versionStr === 'SCORM1.2' || versionStr === 'SCORM 1.2' ||
+                        versionStr === 'SCORM_1.2' || versionStr === 'V1.2') {
+                        return 'V1_2'; // Your schema uses V1_2
+                    }
+
+                    // Default to V1_2 (most common)
+                    return 'V1_2';
+                } catch (error) {
+                    console.warn('[SCORM] Version detection error:', error.message);
+                    return 'V1_2';
+                }
+            };
+
+            scormVersion = getValidScormVersion(manifestJson);
+            console.log('[SCORM] Mapped version for DB:', scormVersion);
+            // 4. Determine launch file
+            const getLaunchFileFromManifest = (manifest) => {
+                try {
+                    // Try SCORM 2004 structure first
+                    if (manifest.manifest?.resources?.resource) {
+                        const resource = manifest.manifest.resources.resource;
+
+                        // Handle array or single object
+                        const targetResource = Array.isArray(resource) ? resource[0] : resource;
+
+                        // Look for launch file in different possible locations
+                        if (targetResource.href) {
+                            return targetResource.href;
+                        }
+
+                        if (targetResource.file) {
+                            const file = Array.isArray(targetResource.file)
+                                ? targetResource.file[0]
+                                : targetResource.file;
+                            if (file.href) return file.href;
+                        }
+
+                        // Look for organization -> item -> resource
+                        if (manifest.manifest?.organizations?.organization) {
+                            const org = Array.isArray(manifest.manifest.organizations.organization)
+                                ? manifest.manifest.organizations.organization[0]
+                                : manifest.manifest.organizations.organization;
+
+                            if (org.item) {
+                                const item = Array.isArray(org.item) ? org.item[0] : org.item;
+                                if (item.identifierref && targetResource.identifier === item.identifierref) {
+                                    // Fallback to index.html in same directory as manifest
+                                    return 'index.html';
+                                }
+                            }
+                        }
+                        // After parsing manifest, add:
+                        console.log('[SCORM DEBUG] Metadata:', JSON.stringify(manifestJson?.manifest?.metadata, null, 2));
+                        console.log('[SCORM DEBUG] Attributes:', manifestJson?.manifest?.$);
+                    }
+                } catch (error) {
+                    console.warn('[SCORM] Error parsing launch file:', error.message);
+                }
+
+                // Default fallback
+                return 'index.html';
+            };
+
+            launchFile = getLaunchFileFromManifest(manifestJson);
+            launchFile = launchFile.replace(/\\/g, '/'); // Normalize path
+            console.log('[SCORM] Launch file:', launchFile);
+
+
+            // 5. Calculate checksum
+            const fileBuffer = fs.readFileSync(filePath);
+            const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+            console.log('[SCORM] Package checksum:', checksum);
+
+            // 6. Check for duplicate packages
+            const existingPackage = await prisma.scormPackage.findFirst({
+                where: { checksum },
+                include: { uploader: true }
+            });
+
+            if (existingPackage) {
+                console.log('[SCORM] Duplicate package found, returning existing');
+                // Clean up temp files
+                fs.rmSync(extractDir, { recursive: true, force: true });
+                fs.unlinkSync(filePath);
+                return existingPackage;
             }
 
-            // Scan all files
-            const files = fs.readdirSync(extractDir, { recursive: true });
-            console.log('[MODEL] Found', files.length, 'entries');
+            // 7. Upload all files to S3
+            console.log('[SCORM] Starting S3 upload...');
 
-            const uploadPromises = [];
-            for (const relativePath of files) {
-                if (!relativePath || relativePath.startsWith('.')) continue;
+            const getAllFiles = (dir, baseDir = dir) => {
+                const files = [];
 
-                const fullPath = path.join(extractDir, relativePath);
-                if (!fs.statSync(fullPath).isFile()) continue;
+                const walk = (currentDir) => {
+                    try {
+                        const items = fs.readdirSync(currentDir, { withFileTypes: true });
 
-                const key = `${folderHandle}${relativePath.replace(/\\/g, '/')}`; // use / always
+                        for (const item of items) {
+                            const fullPath = path.join(currentDir, item.name);
 
-                uploadPromises.push(
-                    new Upload({
-                        client: s3Client,
-                        params: {
-                            Bucket: process.env.AMAZON_S3_BUCKET,
-                            Key: key,
-                            Body: fs.createReadStream(fullPath),
-                            ContentType: 'application/octet-stream', // let S3 detect better types if needed
-                        },
-                    })
-                        .done()
-                        .then(() => {
-                            const url = `https://${process.env.AMAZON_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-                            console.log('[S3 UPLOAD OK]', key);
-                            return { url };
-                        })
-                        .catch(err => {
-                            console.error('[S3 UPLOAD FAIL]', key, err.message);
-                            return null;
-                        })
-                );
+                            if (item.isDirectory()) {
+                                walk(fullPath);
+                            } else {
+                                const relativePath = path.relative(baseDir, fullPath);
+                                files.push({
+                                    fullPath,
+                                    relativePath: relativePath.replace(/\\/g, '/')
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[SCORM] Error walking directory:', err.message);
+                    }
+                };
+
+                walk(dir);
+                return files;
+            };
+
+            const filesToUpload = getAllFiles(extractDir);
+            console.log(`[SCORM] Found ${filesToUpload.length} files to upload`);
+
+            // Upload in batches to avoid memory issues
+            const batchSize = 10;
+
+            for (let i = 0; i < filesToUpload.length; i += batchSize) {
+                const batch = filesToUpload.slice(i, i + batchSize);
+                const batchPromises = [];
+
+                for (const file of batch) {
+                    try {
+                        // Calculate S3 key
+                        const key = `${folderHandle}${file.relativePath}`;
+
+                        // Determine content type
+                        const contentType = this.getContentType(path.extname(file.relativePath));
+
+                        // Upload to S3 (NO ACL - using bucket policy)
+                        const upload = new Upload({
+                            client: s3Client,
+                            params: {
+                                Bucket: process.env.AMAZON_S3_BUCKET,
+                                Key: key,
+                                Body: fs.createReadStream(file.fullPath),
+                                ContentType: contentType,
+                                CacheControl: 'public, max-age=31536000, immutable',
+                                // IMPORTANT: No ACL - bucket policy handles access
+                                Metadata: {
+                                    'original-filename': path.basename(file.relativePath),
+                                    'scorm-package': safeFilename,
+                                    'uploaded-at': new Date().toISOString()
+                                }
+                            },
+                            partSize: 10 * 1024 * 1024,
+                            queueSize: 4,
+                        });
+
+                        batchPromises.push(
+                            upload.done()
+                                .then(() => {
+                                    // Construct public URL
+                                    const publicUrl = `https://${process.env.AMAZON_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+                                    uploadedUrls.push(publicUrl);
+
+                                    console.log(`[S3 UPLOAD SUCCESS] ${file.relativePath}`);
+                                    return publicUrl;
+                                })
+                                .catch(error => {
+                                    console.error(`[S3 UPLOAD FAILED] ${file.relativePath}:`, error.message);
+                                    throw new Error(`Failed to upload ${file.relativePath}: ${error.message}`);
+                                })
+                        );
+                    } catch (error) {
+                        console.error(`[S3 UPLOAD PREP FAILED] ${file.relativePath}:`, error.message);
+                        throw error;
+                    }
+                }
+
+                // Wait for batch to complete
+                await Promise.all(batchPromises);
+                console.log(`[SCORM] Batch ${Math.floor(i / batchSize) + 1} completed (${Math.min(i + batchSize, filesToUpload.length)}/${filesToUpload.length})`);
             }
 
-            const blobs = (await Promise.all(uploadPromises)).filter(Boolean);
-            console.log('[MODEL] Uploaded', blobs.length, 'files to S3');
+            console.log(`[SCORM] All ${uploadedUrls.length} files uploaded to S3`);
 
-            // Save to DB
+            // 8. Save to database
+            console.log('[SCORM] Saving to database...');
+
             const packageData = await prisma.scormPackage.create({
                 data: {
                     filename,
                     storagePath: folderHandle,
                     manifestJson,
-                    scormVersion: manifestJson.manifest?.['@']?.version || 'V1_2',
+                    scormVersion, // This now matches Prisma enum
                     encrypted: false,
                     checksum,
-                    uploadedBy,
-                    blobs: blobs.map(b => b.url),
+                    uploadedAt: new Date(),
+                    uploadedBy: uploadedBy,
+                    blobs: uploadedUrls,
+                    launchFile,
+                    fileCount: uploadedUrls.length,
+                    packageSize: fileBuffer.length,
                 },
-                include: { uploader: true },
+                include: {
+                    uploader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true
+                        }
+                    }
+                }
             });
 
-            console.log('[MODEL] Saved package with blobs:', packageData.id);
+            console.log('[SCORM] Package saved to database with ID:', packageData.id);
 
-            return { ...packageData, blobs: blobs.map(b => b.url) };
+            // Return with additional metadata
+            return {
+                ...packageData,
+                totalFiles: uploadedUrls.length,
+                totalSize: fileBuffer.length,
+                s3BaseUrl: `https://${process.env.AMAZON_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${folderHandle}`,
+                launchUrl: `https://${process.env.AMAZON_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${folderHandle}${launchFile}`
+            };
+
+        } catch (error) {
+            console.error('[SCORM UPLOAD ERROR]', error);
+
+            // Clean up uploaded files if there was an error
+            if (uploadedUrls.length > 0) {
+                console.log('[SCORM] Partial upload occurred. Files uploaded:', uploadedUrls.length);
+                // Note: You might want to implement S3 cleanup here for failed uploads
+            }
+
+            throw new Error(`SCORM upload failed: ${error.message}`);
+
         } finally {
-            if (fs.existsSync(extractDir)) {
-                fs.rmSync(extractDir, { recursive: true, force: true });
+            // 9. Clean up temporary files
+            try {
+                if (fs.existsSync(extractDir)) {
+                    fs.rmSync(extractDir, { recursive: true, force: true });
+                    console.log('[SCORM] Temp directory cleaned');
+                }
+
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    console.log('[SCORM] Original ZIP file removed');
+                }
+            } catch (cleanupError) {
+                console.warn('[SCORM] Cleanup warning:', cleanupError.message);
             }
         }
     }
 
-    static async findById(id) {
-        console.log('[SCORM MODEL] findById:', id);
-        return prisma.scormPackage.findUnique({
-            where: { id },
-            include: { uploader: true }
-        });
-    }
-
-    static async getManifest(id) {
-        const pkg = await this.findById(id);
-        if (!pkg) throw new Error('Package not found');
-        return pkg.manifestJson;
+    // Helper method to get content type
+    static getContentType(ext) {
+        const extLower = ext.toLowerCase();
+        const types = {
+            '.html': 'text/html',
+            '.htm': 'text/html',
+            '.js': 'application/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.xml': 'application/xml',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.pdf': 'application/pdf',
+            '.swf': 'application/x-shockwave-flash',
+            '.txt': 'text/plain',
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+            '.ogg': 'video/ogg',
+            '.ogv': 'video/ogg',
+            '.m4v': 'video/mp4',
+            '.avi': 'video/x-msvideo',
+            '.mov': 'video/quicktime',
+            '.wmv': 'video/x-ms-wmv',
+            '.flv': 'video/x-flv',
+            '.mpg': 'video/mpeg',
+            '.mpeg': 'video/mpeg',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.aac': 'audio/aac',
+            '.m4a': 'audio/mp4',
+            '.woff': 'font/woff',
+            '.woff2': 'font/woff2',
+            '.ttf': 'font/ttf',
+            '.eot': 'application/vnd.ms-fontobject',
+            '.otf': 'font/otf',
+            '.zip': 'application/zip',
+            '.xap': 'application/x-silverlight-app',
+        };
+        return types[extLower] || 'application/octet-stream';
     }
 
     static async getLaunchUrl(id) {
         const pkg = await this.findById(id);
         if (!pkg) throw new Error('Package not found');
 
-        let launchHref = 'res/index.html';
+        // Use the launch file from database
+        const launchFile = pkg.launchFile || 'index.html';
 
-        // Parse manifest (same as before)
-        const innerManifest = pkg.manifestJson?.manifest?.manifest || pkg.manifestJson?.manifest;
-        if (innerManifest?.resources?.[0]?.resource?.[0]?.$?.href) {
-            launchHref = innerManifest.resources[0].resource[0].$.href;
-        }
+        // Construct the S3 URL
+        const baseUrl = `https://${process.env.AMAZON_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com`;
+        const storagePath = pkg.storagePath.endsWith('/') ? pkg.storagePath : `${pkg.storagePath}/`;
 
-        launchHref = launchHref.replace(/\\/g, '/'); // normalize
-
-        // Use first blob's base or construct
-        let baseUrl = 'https://blob.vercel-storage.com';
-        if (pkg.blobs?.length > 0) {
-            const first = new URL(pkg.blobs[0]);
-            baseUrl = `${first.protocol}//${first.host}`;
-        }
-
-        const fullUrl = `${baseUrl}/${pkg.storagePath}${launchHref}`;
-        return fullUrl;
+        return `${baseUrl}/${storagePath}${launchFile}`;
     }
 
+    static async findById(id) {
+        return prisma.scormPackage.findUnique({
+            where: { id },
+            include: { uploader: true }
+        });
+    }
+
+    // Optional: Method to configure S3 CORS programmatically
+    static async configureS3Cors() {
+        const { PutBucketCorsCommand } = await import('@aws-sdk/client-s3');
+
+        try {
+            const command = new PutBucketCorsCommand({
+                Bucket: process.env.AMAZON_S3_BUCKET,
+                CORSConfiguration: {
+                    CORSRules: [
+                        {
+                            AllowedHeaders: ["*"],
+                            AllowedMethods: ["GET", "HEAD"],
+                            AllowedOrigins: ["*"], // Change to specific origins in production
+                            ExposeHeaders: [
+                                "ETag",
+                                "Content-Type",
+                                "Content-Length",
+                                "Content-Range",
+                                "Accept-Ranges"
+                            ],
+                            MaxAgeSeconds: 3000
+                        }
+                    ]
+                }
+            });
+
+            await s3Client.send(command);
+            console.log('✅ S3 CORS configured successfully');
+            return true;
+        } catch (error) {
+            console.warn('⚠️ Could not configure CORS (may need console setup):', error.message);
+            return false;
+        }
+    }
 }
